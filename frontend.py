@@ -170,7 +170,7 @@ with st.container():
 # Backend API URL
 # =========================================
 
-API_URL = "http://127.0.0.1:9999/chat"
+API_URL = "https://ai-agent-chatbot-6ntn.onrender.com"
 
 # =========================================
 # Ask Button
