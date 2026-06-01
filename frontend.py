@@ -2,11 +2,24 @@ import streamlit as st
 import requests
 import time
 
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "token" not in st.session_state:
+    st.session_state.token = None
+
+if "auth_mode" not in st.session_state:
+    st.session_state.auth_mode = "Login"
+
 st.set_page_config(
     page_title="AI Chatbot Agent",
     page_icon="🤖",
     layout="wide"
 )
+
+# =========================================
+# Custom CSS
+# =========================================
 
 st.markdown("""
 <style>
@@ -65,8 +78,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
+# =========================================
 # Header
+# =========================================
 
 st.markdown(
     '<div class="main-title">🤖 AI Chatbot Agent</div>',
@@ -79,8 +93,118 @@ st.markdown(
 )
 
 
-# Sidebar
 
+# =========================================
+# Login Function
+# =========================================
+
+
+
+def show_auth_page():
+
+    st.subheader("🔐 Authentication")
+
+    
+    auth_mode = st.radio(
+        "Choose Option",
+        ["Login", "Signup"],
+        index=0 if st.session_state.auth_mode == "Login" else 1
+    )
+
+    if auth_mode == "Signup":
+
+        name = st.text_input("Name")
+
+        email = st.text_input("Email")
+
+        password = st.text_input(
+            "Password",
+            type="password"
+        )
+
+        if st.button("Create Account"):
+
+            payload = {
+                "name": name,
+                "email": email,
+                "password": password
+            }
+
+            response = requests.post(
+                "http://127.0.0.1:9999/signup",
+                json=payload
+            )
+
+            data = response.json()
+
+            if "message" in data:
+
+                st.success(
+                    "Account Created Successfully"
+                )
+
+                # st.session_state.auth_mode = "Login"
+                st.success("account created successfully")
+
+                st.rerun()
+
+            else:
+
+                st.error(
+                    data.get(
+                        "error",
+                        "Signup Failed"
+                    )
+                )
+
+    else:
+
+        email = st.text_input("Email")
+
+        password = st.text_input(
+            "Password",
+            type="password"
+        )
+
+        if st.button("Login"):
+
+            payload = {
+                "email": email,
+                "password": password
+            }
+
+            response = requests.post(
+                "http://127.0.0.1:9999/login",
+                json=payload
+            )
+
+            if response.status_code == 200:
+                
+
+                data = response.json()
+
+                if "access_token" in data:
+
+                    st.session_state.token = (
+                        data["access_token"]
+                    )
+
+                    st.success(
+                        "Login Successful"
+                    )
+
+                    st.rerun()
+            else:
+                st.error("Invalid Email or password")
+                    
+if not st.session_state.token:
+
+    show_auth_page()
+
+    st.stop()
+# =========================================
+# Sidebar
+# =========================================
 
 with st.sidebar:
 
@@ -118,17 +242,60 @@ with st.sidebar:
         )
 
     allow_web_search = st.checkbox("🌐 Allow Web Search")
-
+    
     st.markdown("---")
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.rerun()
+        
+    st.markdown("## 📜 Previous Chats")
 
+    user_messages = [
+        msg for msg in st.session_state.messages
+        if msg["role"] == "user"
+    ]
 
+    for msg in reversed(user_messages):
 
+        st.markdown(
+            f"🔹 {msg['content'][:35]}"
+        )
+    
+    
+    st.markdown("---")
+
+    if st.button("🚪 Logout"):
+
+        st.session_state.clear()
+
+        st.rerun()
+
+#    info(
+#         "This AI Agent uses LangGraph + FastAPI backend."
+#     )
+
+# ====== st.===================================
 # Main Container
+# =========================================
+# if st.session_state.messages:
 
+#     st.markdown("## 💬 Chat History")
 
+#     for message in st.session_state.messages:
+
+#         if message["role"] == "user":
+
+#             st.markdown(
+#                 f"**🧑 You:** {message['content']}"
+#             )
+
+#         else:
+
+#             st.markdown(
+#                 f"**🤖 AI:** {message['content']}"
+#             )
+
+#         st.markdown("---")
 with st.container():
 
     st.markdown('<div class="chat-box">', unsafe_allow_html=True)
@@ -149,14 +316,15 @@ with st.container():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-
+# =========================================
 # Backend API URL
+# =========================================
+API_URL = "http://127.0.0.1:9999/chat"
+# API_URL = "https://ai-agent-chatbot-6ntn.onrender.com"
 
-
-API_URL = "https://ai-agent-chatbot-6ntn.onrender.com/chat"
-
-
+# =========================================
 # Ask Button
+# =========================================
 
 if st.button("🚀 Ask AI Agent"):
 
@@ -178,15 +346,17 @@ if st.button("🚀 Ask AI Agent"):
                     API_URL,
                     json=payload,
                     headers={
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {st.session_state.token}"
                     }
                 )
 
                 time.sleep(1)
 
-
+            # =========================================
             # Success Response
-          
+            # =========================================
+
             if response.status_code == 200:
 
                 response_data = response.json()
@@ -196,10 +366,26 @@ if st.button("🚀 Ask AI Agent"):
                     st.error(response_data["error"])
 
                 else:
+                    
+                    st.session_state.messages.append(
+                        {
+                            "role": "user",
+                            "content": user_query
+                        }
+                    )
 
-                    st.markdown("## 🤖 AI Response")
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": response_data["response"]
+                        }
+                    )
+                    
+                
 
-                    st.markdown(
+                st.markdown("## 🤖 AI Response")
+
+                st.markdown(
                         f'''
                         <div class="response-box">
                         {response_data["response"]}
@@ -208,9 +394,10 @@ if st.button("🚀 Ask AI Agent"):
                         unsafe_allow_html=True
                     )
 
-       
+            # =========================================
             # Error Response
-         
+            # =========================================
+
             else:
 
                 st.error(
@@ -227,13 +414,12 @@ if st.button("🚀 Ask AI Agent"):
 
         st.warning("⚠️ Please enter your query.")
 
-
+# =========================================
 # Footer
-
+# =========================================
 
 st.markdown("---")
 
 st.caption(
     "🚀 Built with Streamlit + FastAPI + LangGraph"
 )
-
