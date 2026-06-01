@@ -155,6 +155,7 @@ def chat_endpoint(
     .filter(User.email == current_user)
     .first()
 )
+<<<<<<< HEAD
 
     import time
 
@@ -167,6 +168,9 @@ def chat_endpoint(
     )
 
     
+=======
+    response = get_response_from_ai_agent(llm_id, query, allowed_search, system_prompt, provider)
+>>>>>>> 53bb903 (Added JWT authentication, PostgreSQL user management and chat history)
     
     
     chat = ChatHistory(
