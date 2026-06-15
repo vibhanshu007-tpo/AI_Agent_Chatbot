@@ -155,7 +155,18 @@ def chat_endpoint(
     .filter(User.email == current_user)
     .first()
 )
+
+    import time
+
+    start = time.time()
+
     response = get_response_from_ai_agent(llm_id, query, allowed_search, system_prompt, provider)
+
+    print(
+        f"Response Time: {time.time() - start:.2f} sec"
+    )
+
+    
     
     
     chat = ChatHistory(

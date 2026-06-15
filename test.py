@@ -10,12 +10,21 @@ if "token" not in st.session_state:
 
 if "auth_mode" not in st.session_state:
     st.session_state.auth_mode = "Login"
+    
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = {}
+
+if "current_chat" not in st.session_state:
+    st.session_state.current_chat = "Chat 1"
 
 st.set_page_config(
     page_title="AI Chatbot Agent",
     page_icon="🤖",
     layout="wide"
+    
 )
+
+
 
 # =========================================
 # Custom CSS
@@ -105,6 +114,15 @@ st.markdown("""
     border-left:5px solid #00ffcc;
 }
 
+.stButton > button {
+    width:100%;
+    height:50px;
+    border-radius:12px;
+    font-weight:bold;
+    font-size:16px;
+}
+
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -113,7 +131,7 @@ st.markdown("""
 # =========================================
 
 st.markdown(
-    '<div class="main-title">🤖 AI Chatbot Agent</div>',
+    '<div class="main-title">🤖 AI Agent Chatbot</div>',
     unsafe_allow_html=True
 )
 
@@ -131,8 +149,9 @@ st.markdown(
 
 
 def show_auth_page():
-
+    
     st.subheader("🔐 Authentication")
+   
 
     
     auth_mode = st.radio(
@@ -145,12 +164,16 @@ def show_auth_page():
 
         name = st.text_input("Name")
 
-        email = st.text_input("Email")
+        email = st.text_input(
+    "📧 Email Address",
+    placeholder="Enter your email"
+)
 
         password = st.text_input(
-            "Password",
-            type="password"
-        )
+    "🔒 Password",
+    type="password",
+    placeholder="Enter your password"
+)
 
         if st.button("Create Account"):
 
@@ -218,6 +241,8 @@ def show_auth_page():
                     st.session_state.token = (
                         data["access_token"]
                     )
+                    
+                    st.session_state.user_email = email
 
                     st.success(
                         "Login Successful"
@@ -237,9 +262,47 @@ if not st.session_state.token:
 # =========================================
 
 with st.sidebar:
+    
+    email = st.session_state.get(
+    "user_email",
+    "Guest"
+)
 
-    st.title("⚙️ Agent Settings")
+    username = email.split("@")[0]
+    
+    st.markdown(f"""
+<div style="
+background:#111827;
+padding:20px;
+border-radius:15px;
+border:1px solid #374151;
+text-align:center;
+margin-bottom:15px;
+">
 
+<h3 style="color:white;">
+👤 {username}
+</h3>
+
+<p style="color:#9ca3af;">
+{email}
+</p>
+
+<p style="color:#10b981;">
+🟢 Online
+</p>
+
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    st.subheader("⚡ Model Settings")
+
+    provider = st.radio(
+        "Provider",
+        ["Groq", "OpenAI"]
+    )
     st.markdown("---")
 
     MODEL_NAMES_GROQ = [
@@ -252,54 +315,108 @@ with st.sidebar:
         "gpt-4.1-mini"
     ]
 
-    provider = st.radio(
-        "Select Provider",
-        ["Groq", "OpenAI"]
+    selected_model = st.selectbox(
+        "Model",
+        MODEL_NAMES_GROQ if provider == "Groq"
+        else MODEL_NAMES_OPENAI
     )
 
-    if provider == "Groq":
+    allow_web_search = st.toggle(
+        "🌐 Enable Web Search"
+    )
 
-        selected_model = st.selectbox(
-            "Select Groq Model",
-            MODEL_NAMES_GROQ
-        )
-
-    else:
-
-        selected_model = st.selectbox(
-            "Select OpenAI Model",
-            MODEL_NAMES_OPENAI
-        )
-
-    allow_web_search = st.checkbox("🌐 Allow Web Search")
-    
     st.markdown("---")
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.messages = []
-        st.rerun()
-        
-    st.markdown("## 📜 Previous Chats")
 
-    user_messages = [
-        msg for msg in st.session_state.messages
-        if msg["role"] == "user"
-    ]
+    st.subheader("💬 Chat Controls")
 
-    for msg in reversed(user_messages):
+    col1, col2 = st.columns(2)
 
-        st.markdown(
-            f"🔹 {msg['content'][:35]}"
+    with col1:
+        if st.button("🆕 New Chat"):
+
+            st.session_state.chat_history[
+                st.session_state.current_chat
+            ] = st.session_state.messages.copy()
+
+            chat_number = len(
+                st.session_state.chat_history
+            ) + 1
+
+            st.session_state.current_chat = (
+                f"Chat {chat_number}"
+            )
+
+            st.session_state.messages = []
+            st.session_state.user_query = ""
+            st.session_state.system_prompt = ""
+
+            if "latest_response" in st.session_state:
+                del st.session_state["latest_response"]
+
+            st.rerun()
+    with col2:
+        if st.button("🗑️ Clear"):
+            st.session_state.messages = []
+            
+            st.session_state.chat_history[
+                st.session_state.current_chat
+            ] = []
+            
+            if "latest_response" in st.session_state:
+                del st.session_state["latest_response"]
+
+            st.rerun()
+
+    st.markdown("---")
+
+    st.subheader("📜 Recent Chats")
+
+    for msg in reversed(
+        st.session_state.messages[-10:]
+    ):
+        if msg["role"] == "user":
+            st.caption(
+                f"🔹 {msg['content'][:30]}"
+            )
+            
+    st.subheader("📜 Chats")
+
+    for chat_name in st.session_state.chat_history.keys():
+
+        if st.button(
+        chat_name,
+        key=f"chat_{chat_name}"
+    ):
+
+            st.session_state.current_chat = chat_name
+
+        st.session_state.messages = (
+            st.session_state.chat_history[
+                chat_name
+            ]
         )
-    
-    
+
+        if st.session_state.messages:
+
+            for msg in reversed(
+                st.session_state.messages
+            ):
+
+                if msg["role"] == "assistant":
+
+                    st.session_state.latest_response = (
+                        msg["content"]
+                    )
+
+                    break
+
+        st.rerun()
+
     st.markdown("---")
 
     if st.button("🚪 Logout"):
-
         st.session_state.clear()
-
         st.rerun()
-
 #    info(
 #         "This AI Agent uses LangGraph + FastAPI backend."
 #     )
@@ -326,22 +443,51 @@ with st.sidebar:
 #             )
 
 #         st.markdown("---")
+response_placeholder = st.empty()
+
+
 with st.container():
+    
+    if "latest_response" in st.session_state:
+        
+        with response_placeholder.container():
+
+            st.markdown("## 🤖 AI Response")
+
+            st.markdown(
+            f"""
+            <div class="response-box">
+            {st.session_state.latest_response}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     st.markdown('<div class="chat-box">', unsafe_allow_html=True)
 
     # System Prompt
+    if "system_prompt" not in st.session_state:
+        st.session_state.system_prompt = ""
+        
+    if "user_query" not in st.session_state:
+        st.session_state.user_query = ""  
+        
     system_prompt = st.text_area(
         "🧠 Define your AI Agent",
+    
         height=100,
-        placeholder="You are a helpful AI assistant..."
+        placeholder="Ex. Finance Adviser, Trip planner etc....",
+        key = "system_prompt"
     )
 
     # User Query
     user_query = st.text_area(
         "💬 Enter your Query",
+        
         height=150,
-        placeholder="Ask Anything..."
+        placeholder="Ask Anything...",
+        key="user_query"
+        
     )
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -369,13 +515,15 @@ if st.button("🚀 Ask AI Agent"):
         }
 
         try:
+            
+            with response_placeholder.container():
 
-            with st.spinner("🤖 AI is thinking..."):
+                with st.spinner("🤖 AI is thinking..."):
 
-                response = requests.post(
-                    API_URL,
-                    json=payload,
-                    headers={
+                    response = requests.post(
+                        API_URL,
+                        json=payload,
+                        headers={
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {st.session_state.token}"
                     }
@@ -412,18 +560,25 @@ if st.button("🚀 Ask AI Agent"):
                         }
                     )
                     
+               
+                st.session_state.chat_history[
+                st.session_state.current_chat
+            ] = st.session_state.messages.copy()
                 
+                st.session_state.latest_response = response_data["response"]
+                
+                st.rerun()
+                
+                # st.markdown("## 🤖 AI Response")
 
-                st.markdown("## 🤖 AI Response")
-
-                st.markdown(
-                        f'''
-                        <div class="response-box">
-                        {response_data["response"]}
-                        </div>
-                        ''',
-                        unsafe_allow_html=True
-                    )
+                # st.markdown(
+                #         f'''
+                #         <div class="response-box">
+                #         {response_data["response"]}
+                #         </div>
+                #         ''',
+                #         unsafe_allow_html=True
+                #     )
 
             # =========================================
             # Error Response
